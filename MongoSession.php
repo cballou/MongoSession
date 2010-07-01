@@ -145,6 +145,7 @@ class MongoSession {
      * Open does absolutely nothing as we already have an open connection.
      *
      * @access  public
+     * @return	bool
      */
     public function open($save_path, $session_name)
     {
@@ -156,6 +157,7 @@ class MongoSession {
      * things just fine.
      *
      * @access  public
+     * @return	bool
      */
     public function close()
     {
@@ -164,6 +166,10 @@ class MongoSession {
 
     /**
      * Read the session data.
+     *
+     * @access	public
+     * @param	string	$id
+     * @return	string
      */
     public function read($id)
     {
@@ -194,6 +200,7 @@ class MongoSession {
      * @access  public
      * @param   string  $id
      * @param   mixed   $data
+     * @return	bool
      */
     public function write($id, $data)
     {
@@ -236,6 +243,7 @@ class MongoSession {
      * Garbage collection. Remove all expired entries.
      *
      * @access  public
+     * @return	bool
      */
 	public function gc()
     {
