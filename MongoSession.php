@@ -10,11 +10,14 @@ class MongoSession {
         // cookie related vars
         'cookie_path'   => '/',
         'cookie_domain' => '.mofollow.com', // .mydomain.com
+
         // session related vars
         'lifetime'      => 3600,        // session lifetime in seconds
         'database'      => 'session',   // name of MongoDB database
         'collection'    => 'session',   // name of MongoDB collection
-        'servers'   => array(           // array of servers
+		
+		// array of mongo db servers
+        'servers'   	=> array(
             array(
                 'host'          => Mongo::DEFAULT_HOST,
                 'port'          => Mongo::DEFAULT_PORT,
