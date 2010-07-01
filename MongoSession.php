@@ -40,7 +40,8 @@ class MongoSession {
      * @access  public
      * @param   array   $config
      */
-    public function __construct($config = array()) {
+    public function __construct($config = array())
+	{
         // initialize the database
         $this->_init(empty($config) ? $this->_config : $config);
 
@@ -246,14 +247,14 @@ class MongoSession {
      * @return	bool
      */
 	public function gc()
-    {
+	{
 		// update expired elements and set to inactive
 		$this->mongo->update(
                             array('expiry' => array(':lt' => time())),
                             array('$set' => array('active' => 0))
-        );
+		);
 
-    	return true;
+		return true;
    	}
 
 }
