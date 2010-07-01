@@ -246,6 +246,3 @@ class MongoSession {
    	}
 
 }
-
-// load the session
-$session = new MongoSession();
