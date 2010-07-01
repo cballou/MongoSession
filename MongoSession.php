@@ -28,8 +28,8 @@ class MongoSession {
     // stores the mongo db
 	protected $mongo;
 
-    // stores something
-    private $session;
+    // stores session data results
+	private $session;
 
     /**
      * Default constructor.
@@ -63,7 +63,7 @@ class MongoSession {
         ini_set('session.use_only_cookies',         1);
         ini_set('session.use_trans_sid',            0);
         ini_set('session.hash_function',            1);
-        ini_seT('session.hash_bits_per_character',  5);
+        ini_set('session.hash_bits_per_character',  5);
 
         // disable client/proxy caching
         session_cache_limiter('nocache');
