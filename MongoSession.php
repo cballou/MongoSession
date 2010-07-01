@@ -15,7 +15,7 @@ class MongoSession {
         'lifetime'      => 3600,        // session lifetime in seconds
         'database'      => 'session',   // name of MongoDB database
         'collection'    => 'session',   // name of MongoDB collection
-		
+
 		// array of mongo db servers
         'servers'   	=> array(
             array(
@@ -27,7 +27,7 @@ class MongoSession {
             )
         )
     );
-    
+
 	// stores the mongo db
 	protected $mongo;
 
