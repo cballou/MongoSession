@@ -25,10 +25,10 @@ class MongoSession {
         )
     );
     
-    // stores the mongo db
+	// stores the mongo db
 	protected $mongo;
 
-    // stores session data results
+	// stores session data results
 	private $session;
 
     /**
