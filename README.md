@@ -1,6 +1,14 @@
 Overview
 --------
-The MongoSession PHP session handler class was built as a drop-in for easily switching to handling sessions using Mongo. It's a great replacement to memcache(d) for VPS servers where you risk memory being reshuffled in the pool and taking performance hits.
+The MongoSession PHP session handler class was built as a drop-in for easily switching to handling sessions using Mongo. It's a 
+great replacement to memcache(d) for VPS servers where you risk memory being reshuffled in the pool and taking performance hits. 
+There are currently inherent risks in using MongoDB as your session handler that you can read about on the documentation page:
+
+http://www.jqueryin.com/projects/mongo-session/
+
+The session handler has recently been updated to perform atomic updates as a quick (although not 100% effective) patch regarding the 
+issue of race conditions caused by issuing AJAX commands. This generally shouldn't be a problem for most sites unless you are 
+performing a series of AJAX requests which modify the same session data fields asynchronously.
 
 Notes
 -----
@@ -20,4 +28,9 @@ the top of your files before you make any calls to header():
     // load the session
     $session = new MongoSession();
 
-*More documentation will be available soon.*
+Advanced Usage
+--------------
+
+If you are currently running multiple Mongo servers (i.e. replica pairs or sharding), there are more advanced configuration options
+available to you for specifying multiple servers.  This functionality has not yet been tested but the configuration is documented 
+on the website. If you fork this library and make any substantial updates or bug fixes, please consider sending a push request.

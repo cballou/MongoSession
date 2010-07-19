@@ -4,6 +4,22 @@
  */
 class MongoSession {
     
+	/**
+	 * Whether session writes should be performed safely. If TRUE, the
+	 * program will wait for a database response and throw a
+	 * MongoCursorException if the update failed. Can also be set to an
+	 * integer value for replication. For more information, see:
+	 * http://www.php.net/manual/en/mongocollection.update.php
+	 * Slower when on but minimizes any session errors when coupled with FSYNC.
+	 */
+	const SAFE = false;
+	
+	/**
+	 * If TRUE, forces the session write to be synced to disk before
+	 * returning success.
+	 */
+	const FSYNC = false;
+	
     // example config with support for multiple servers
     // (helpful for sharding and replication setups)
     protected $_config = array(
@@ -137,8 +153,7 @@ class MongoSession {
             throw new Exception('The MongoDB collection specified in the config does not exist.');
         }
         
-        // ensure we have proper indexing on both the session_id and expiry params
-        $this->mongo->ensureIndex('id', array('id' => 1));
+        // ensure we have proper indexing on the expiration
         $this->mongo->ensureIndex('expiry', array('expiry' => 1));   
     }
 
@@ -180,13 +195,12 @@ class MongoSession {
         // exclude results that are inactive or expired
         $result = $this->mongo->findOne(
                                     array(
-                                        'id'        => $id,
+                                        '_id'		=> $id,
                                         'expiry'    => array('$gte' => $expiry),
                                         'active'    => 1
                                     )
         );
 
-        $result = $this->mongo->findOne(array('id' => $id));
         if ($result) {
             $this->session = $result;
             return $result['data'];
@@ -196,7 +210,7 @@ class MongoSession {
    }
 
     /**
-     * Write data to the session.
+     * Atomically write data to the session. 
      *
      * @access  public
      * @param   string  $id
@@ -210,7 +224,7 @@ class MongoSession {
         
         // create new session data
         $new_obj = array(
-            'id'        => $id,
+            '_id'		=> $id,
             'data'      => $data,
             'active'    => 1,
             'expiry'    => $expiry
@@ -221,8 +235,24 @@ class MongoSession {
             $obj = (array) $this->session;
             $new_obj = array_merge($obj, $new_obj);
         }
+
+		// atomic update
+		$query = array('_id' => $id);
+		
+		// update options
+		$options = array(
+			'upsert' 	=> true,
+			'safe'		=> MongoSession::SAFE,
+			'fsync'		=> MongoSession::FSYNC
+		);
   
-        $this->mongo->save($new_obj);
+		// perform the update or insert
+		try {
+			$this->mongo->update($query, array('$set' => $new_obj), $options);
+		} catch (Exception $e) {
+			return false;
+		}
+		
         return true;
     }
 
@@ -236,23 +266,33 @@ class MongoSession {
      */
     public function destroy($id)
     {
-        $this->mongo->remove(array('id' => $id), true);
+        $this->mongo->remove(array('_id' => $id), true);
         return true;
     }
 
     /**
-     * Garbage collection. Remove all expired entries.
+     * Garbage collection. Remove all expired entries atomically.
      *
      * @access  public
      * @return	bool
      */
 	public function gc()
 	{
-		// update expired elements and set to inactive
-		$this->mongo->update(
-                            array('expiry' => array(':lt' => time())),
-                            array('$set' => array('active' => 0))
+		// define the query
+		$query = array('expiry' => array(':lt' => time()));
+		
+		// specify the update vars
+		$update = array('$set' => array('active' => 0));
+		
+		// update options
+		$options = array(
+			'multiple'	=> TRUE,
+			'safe'		=> MongoSession::SAFE,
+			'fsync'		=> MongoSession::FSYNC
 		);
+		
+		// update expired elements and set to inactive
+		$this->mongo->update($query, $update, $options);
 
 		return true;
    	}
