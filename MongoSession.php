@@ -279,7 +279,7 @@ class MongoSession {
 	public function gc()
 	{
 		// define the query
-		$query = array('expiry' => array(':lt' => time()));
+		$query = array('expiry' => array('$lt' => time()));
 		
 		// specify the update vars
 		$update = array('$set' => array('active' => 0));
