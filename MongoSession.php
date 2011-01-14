@@ -224,7 +224,6 @@ class MongoSession {
         
         // create new session data
         $new_obj = array(
-            '_id'		=> $id,
             'data'      => $data,
             'active'    => 1,
             'expiry'    => $expiry
