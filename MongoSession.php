@@ -200,6 +200,13 @@ class MongoSession {
             $this->session = $result;
             return $result['data'];
         }
+
+        $this->mongo->insert(array(
+            '_id'    => $id,
+            'data'   => null,
+            'expiry' => 0,
+            'active' => 0
+        ));
         
         return '';
    }
