@@ -1,36 +1,36 @@
 <?php
 /*
  * This MongoDB session handler is intended to store any data you see fit.
+ * One interesting optimization to note is the setting of the active flag
+ * to 0 when a session has expired. The intended purpose of this garbage
+ * collection is to allow you to create a batch process for removal of
+ * all expired sessions. This should most likely be implemented as a cronjob
+ * script.
+ *
+ * @author		Corey Ballou
+ * @copyright	Corey Ballou (2010)
+ * 
  */
 class MongoSession {
-    
-	/**
-	 * Whether session writes should be performed safely. If TRUE, the
-	 * program will wait for a database response and throw a
-	 * MongoCursorException if the update failed. Can also be set to an
-	 * integer value for replication. For more information, see:
-	 * http://www.php.net/manual/en/mongocollection.update.php
-	 * Slower when on but minimizes any session errors when coupled with FSYNC.
-	 */
-	const SAFE = false;
 	
-	/**
-	 * If TRUE, forces the session write to be synced to disk before
-	 * returning success.
-	 */
-	const FSYNC = false;
-	
-    // example config with support for multiple servers
+    // default config with support for multiple servers
     // (helpful for sharding and replication setups)
     protected $_config = array(
         // cookie related vars
         'cookie_path'   => '/',
-        'cookie_domain' => '.mofollow.com', // .mydomain.com
+        'cookie_domain' => '.mydomain.com', // .mydomain.com
 
         // session related vars
         'lifetime'      => 3600,        // session lifetime in seconds
         'database'      => 'session',   // name of MongoDB database
         'collection'    => 'session',   // name of MongoDB collection
+
+		// persistent related vars
+		'persistent' 	=> false, 			// persistent connection to DB?
+        'persistentId' 	=> 'MongoSession', 	// name of persistent connection
+		
+		// whether we're supporting replicaSet
+		'replicaSet'		=> false,
 
 		// array of mongo db servers
         'servers'   	=> array(
@@ -38,17 +38,19 @@ class MongoSession {
                 'host'          => Mongo::DEFAULT_HOST,
                 'port'          => Mongo::DEFAULT_PORT,
                 'username'      => null,
-                'password'      => null,
-                'persistent'    => false
+                'password'      => null
             )
         )
     );
 
+	// stores the connection
+	protected $_connection;
+
 	// stores the mongo db
-	protected $mongo;
+	protected $_mongo;
 
 	// stores session data results
-	private $session;
+	protected $_session;
 
     /**
      * Default constructor.
@@ -89,9 +91,12 @@ class MongoSession {
         session_cache_limiter('nocache');
         
         // set the cookie parameters
-        session_set_cookie_params($this->_config['lifetime'],
-                                  $this->_config['cookie_path'],
-                                  $this->_config['cookie_domain']);
+        session_set_cookie_params(
+			$this->_config['lifetime'],
+			$this->_config['cookie_path'],
+			$this->_config['cookie_domain']
+		);
+
         // name the session
         session_name('mongo_sess');
     
@@ -128,7 +133,8 @@ class MongoSession {
                 if (!empty($server['username']) && !empty($server['password'])) {
                     $str .= $server['username'] . ':' . $server['password'] . '@';
                 }
-                $str .= $server['host'] . ':' . $server['port'];
+				$str .= !empty($server['host']) ? $server['host'] : Mongo::DEFAULT_HOST;
+                $str .= ':' . (!empty($server['port']) ? (int) $server['port'] : Mongo::DEFAULT_PORT);
                 array_push($connections, $str);
             }
         } else {
@@ -136,25 +142,59 @@ class MongoSession {
             array_push($connections, Mongo::DEFAULT_HOST . ':' . Mongo::DEFAULT_PORT);
         }
         
-        // load mongo servers
-        $mongo = new Mongo('mongodb://' . implode(',', $connections));
+		// add immediate connection
+		$opts = array('connect' => true);
+		
+		// support persistent connections
+		if ($this->_config['persistent'] && !empty($this->_config['persistentId'])) {
+            $opts['persist'] = $this->_config['persistentId'];
+        }
+
+		// support replica sets
+		if ($this->_config['replicaSet']) {
+			$opts['replicaSet'] = true;
+		}
+		
+        // load mongo server connection
+		try {
+			$this->_connection = new Mongo('mongodb://' . implode(',', $connections), $opts);
+		} catch (Exception $e) {
+			throw new Exception('Can\'t connect to the MongoDB server.');
+		}
         
-        // load db
+        // load the db
         try {
-            $mongo = $mongo->selectDB($this->_config['database']);
+            $mongo = $this->_connection->selectDB($this->_config['database']);
         } catch (InvalidArgumentException $e) {
             throw new Exception('The MongoDB database specified in the config does not exist.');
         }
         
         // load collection
         try {
-            $this->mongo = $mongo->selectCollection($this->_config['collection']);
+            $this->_mongo = $mongo->selectCollection($this->_config['collection']);
         } catch(Exception $e) {
             throw new Exception('The MongoDB collection specified in the config does not exist.');
         }
         
-        // ensure we have proper indexing on the expiration
-        $this->mongo->ensureIndex('expiry', array('expiry' => 1));   
+        // proper indexing on the expiration
+        $this->_mongo->ensureIndex(
+			array('expiry' => 1),
+			array('name' => 'expiry',
+				  'unique' => true,
+				  'dropDups' => true,
+				  'safe' => true
+			)
+		);
+		
+		// proper indexing of session id and lock
+		$this->_mongo->ensureIndex(
+			array('session_id' => 1, 'lock' => 1),
+			array('name' => 'session_id',
+				  'unique' => true,
+				  'dropDups' => true,
+				  'safe' => true
+			)
+		);
     }
 
     /**
@@ -189,30 +229,30 @@ class MongoSession {
      */
     public function read($id)
     {
-        // exclude results that are inactive or expired
-        $result = $this->mongo->findOne(array(
-            '_id'       => $id,
-            'expiry'    => array('$gte' => time()),
-            'active'    => 1
-        ));
+		// obtain a read lock on the data, or subsequently wait for
+		// the lock to be released
+		$this->_lock($id);
 
-        if ($result) {
-            $this->session = $result;
+        // exclude results that are inactive or expired
+        $result = $this->_mongo->findOne(
+			array(
+				'session_id'	=> $id,
+				'expiry'    	=> array('$gte' => time()),
+				'active'    	=> 1
+			)
+		);
+
+        if (isset($result['data'])) {
+            $this->_session = $result;
             return $result['data'];
         }
 
-        $this->mongo->insert(array(
-            '_id'    => $id,
-            'data'   => null,
-            'expiry' => 0,
-            'active' => 0
-        ));
-        
         return '';
    }
 
     /**
-     * Atomically write data to the session. 
+     * Atomically write data to the session, ensuring we remove any
+     * read locks.
      *
      * @access  public
      * @param   string  $id
@@ -223,33 +263,35 @@ class MongoSession {
     {
         // create expires
         $expiry = time() + $this->_config['lifetime'];
-        
+
         // create new session data
         $new_obj = array(
-            'data'      => $data,
-            'active'    => 1,
-            'expiry'    => $expiry
+            'data'		=> $data,
+			'lock'		=> 0,
+            'active'		=> 1,
+            'expiry'		=> $expiry
         );
         
         // check for existing session for merge
-        if (!empty($this->session)) {
-            $obj = (array) $this->session;
+        if (!empty($this->_session)) {
+            $obj = (array) $this->_session;
             $new_obj = array_merge($obj, $new_obj);
         }
 
 		// atomic update
-		$query = array('_id' => $id);
+		$query = array('session_id' => $id);
 		
 		// update options
 		$options = array(
-			'upsert' 	=> true,
-			'safe'		=> MongoSession::SAFE,
-			'fsync'		=> MongoSession::FSYNC
+			'upsert' 	=> TRUE,
+			'safe'		=> TRUE,
+			'fsync'		=> TRUE
 		);
   
 		// perform the update or insert
 		try {
-			$this->mongo->update($query, array('$set' => $new_obj), $options);
+			$result = $this->_mongo->update($query, array('$set' => $new_obj), $options);
+			return $result['ok'] == 1;
 		} catch (Exception $e) {
 			return false;
 		}
@@ -267,7 +309,7 @@ class MongoSession {
      */
     public function destroy($id)
     {
-        $this->mongo->remove(array('_id' => $id), true);
+        $this->_mongo->remove(array('session_id' => $id), true);
         return true;
     }
 
@@ -288,14 +330,68 @@ class MongoSession {
 		// update options
 		$options = array(
 			'multiple'	=> TRUE,
-			'safe'		=> MongoSession::SAFE,
-			'fsync'		=> MongoSession::FSYNC
+			'safe'		=> TRUE,
+			'fsync'		=> TRUE
 		);
 		
 		// update expired elements and set to inactive
-		$this->mongo->update($query, $update, $options);
+		$this->_mongo->update($query, $update, $options);
 
 		return true;
    	}
+	
+	/**
+	 * Solves issues with write() and close() throwing exceptions.
+	 *
+	 * @access	public
+	 * @return	void
+	 */
+	public function __destruct()
+	{
+		session_write_close();
+	}
+	
+	/**
+	 * Create a global lock for the specified document.
+	 *
+	 * @author	Benson Wong (mostlygeek@gmail.com)
+	 * @access	private
+	 * @param	string	$id
+	 */
+	private function _lock($id)
+	{
+		$remaining = 30000000;
+		$timeout = 5000;
+		
+        do {
+			
+            try {
+				
+                $query = array('session_id' => $id, 'lock' => 0);
+                $update = array('$set' => array('lock' => 1));
+                $options = array('safe' => true, 'upsert' => true);
+                $result = $this->_mongo->update($query, $update, $options);
+                if ($result['ok'] == 1) {
+                    return true;
+                }
+
+            } catch (MongoCursorException $e) {
+                if (substr($e->getMessage(), 0, 26) != 'E11000 duplicate key error') {
+                    throw $e; // not a dup key?
+                }
+            }
+
+			// force delay in microseconds
+            usleep($timeout);
+            $remaining -= $timeout;
+
+            // backoff on timeout, save a tree. max wait 1 second
+            $timeout = ($timeout < 1000000) ? $timeout * 2 : 1000000;
+
+        } while ($remaining > 0);
+
+        // aww shit.
+        throw new Exception('Could not obtain a session lock.');
+	}
 
 }
