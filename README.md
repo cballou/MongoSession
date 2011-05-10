@@ -30,7 +30,7 @@ Overriding Default Config Settings
 You can override configuration settings in MongoSession by passing in an array with any of the following parameters below.
 The default is below as a reference.
 
-```` PHP
+````PHP
 $config = array(
     // cookie related vars
     'cookie_path'   => '/',
@@ -71,7 +71,7 @@ The theoretical usage of this class is to setup a periodical cronjob to batch de
 A future version of this library will include the cronjob example. For those of you who do not care to implement this, you may remove
 all references to the active flag entirely in read(), write(), and gc(). Lastly, you will need to update gc() to delete the document:
 
-```` PHP
+````PHP
 public function gc()
 {
     // define the query
