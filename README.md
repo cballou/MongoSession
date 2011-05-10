@@ -10,11 +10,6 @@ The session handler has recently been updated to perform atomic updates as a qui
 issue of race conditions caused by issuing AJAX commands. This generally shouldn't be a problem for most sites unless you are 
 performing a series of AJAX requests which modify the same session data fields asynchronously.
 
-Notes
------
--  Although the $config array contains the parameter "persistent," it is not currently used.
--  Please make requests for additional functionality as I'm looking for ideas.
-
 Default Usage 
 -------------
 If you only have a single server running Mongo on localhost, you can simply load the class and it'll use default config values. 
