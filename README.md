@@ -23,12 +23,14 @@ require_once('MongoSession.php');
 
 // load the session
 $session = new MongoSession();
+````
 
 Overriding Default Config Settings
 --------------
 You can override configuration settings in MongoSession by passing in an array with any of the following parameters below.
 The default is below as a reference.
 
+```` PHP
 $config = array(
     // cookie related vars
     'cookie_path'   => '/',
