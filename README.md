@@ -18,6 +18,7 @@ database nor collection exist, they will be created upon the first session inser
 the top of your files before you make any calls to header():
 
 ```` PHP
+<?php
 // include the session handler
 require_once('MongoSession.php');
 
@@ -31,6 +32,7 @@ You can override configuration settings in MongoSession by passing in an array w
 The default is below as a reference.
 
 ````PHP
+<?php
 $config = array(
     // cookie related vars
     'cookie_path'   => '/',
@@ -72,6 +74,7 @@ A future version of this library will include the cronjob example. For those of 
 all references to the active flag entirely in read(), write(), and gc(). Lastly, you will need to update gc() to delete the document:
 
 ````PHP
+<?php
 public function gc()
 {
     // define the query
