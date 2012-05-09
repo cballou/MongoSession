@@ -33,14 +33,7 @@ class MongoSession {
 		'replicaSet'		=> false,
 
 		// array of mongo db servers
-        'servers'   	=> array(
-            array(
-                'host'          => Mongo::DEFAULT_HOST,
-                'port'          => Mongo::DEFAULT_PORT,
-                'username'      => null,
-                'password'      => null
-            )
-        )
+		'connectionString'    => ''
     );
 
 	// stores the connection
@@ -125,22 +118,7 @@ class MongoSession {
         // update config
         $this->_config = array_merge($this->_config, $config);
         
-        // generate server connection strings
-        $connections = array();
-        if (!empty($this->_config['servers'])) {
-            foreach ($this->_config['servers'] as $server) {
-                $str = '';
-                if (!empty($server['username']) && !empty($server['password'])) {
-                    $str .= $server['username'] . ':' . $server['password'] . '@';
-                }
-				$str .= !empty($server['host']) ? $server['host'] : Mongo::DEFAULT_HOST;
-                $str .= ':' . (!empty($server['port']) ? (int) $server['port'] : Mongo::DEFAULT_PORT);
-                array_push($connections, $str);
-            }
-        } else {
-            // use default connection settings
-            array_push($connections, Mongo::DEFAULT_HOST . ':' . Mongo::DEFAULT_PORT);
-        }
+        
         
 		// add immediate connection
 		$opts = array('connect' => true);
@@ -157,7 +135,7 @@ class MongoSession {
 		
         // load mongo server connection
 		try {
-			$this->_connection = new Mongo('mongodb://' . implode(',', $connections), $opts);
+			$this->_connection = new Mongo($this->_config['connectionString'], $opts);
 		} catch (Exception $e) {
 			throw new Exception('Can\'t connect to the MongoDB server.');
 		}
@@ -180,9 +158,10 @@ class MongoSession {
         $this->_mongo->ensureIndex(
 			array('expiry' => 1),
 			array('name' => 'expiry',
-				  'unique' => true,
+				  'unique' => false,
 				  'dropDups' => true,
-				  'safe' => true
+				  'safe' => true,
+				  'sparse' => true,
 			)
 		);
 		
