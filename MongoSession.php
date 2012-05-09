@@ -152,7 +152,7 @@ class MongoSession {
 
 		// support replica sets
 		if ($this->_config['replicaSet']) {
-			$opts['replicaSet'] = true;
+			$opts['replicaSet'] = $this->_config['replicaSet'];
 		}
 		
         // load mongo server connection
