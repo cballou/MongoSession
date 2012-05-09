@@ -123,7 +123,7 @@ class MongoSession {
         }
         
         // update config
-        $this->_config = $config;
+        $this->_config = array_merge($this->_config, $config);
         
         // generate server connection strings
         $connections = array();
