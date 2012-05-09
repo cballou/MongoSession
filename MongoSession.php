@@ -58,12 +58,12 @@ class MongoSession {
 
         // set object as the save handler
         session_set_save_handler(
-            array(&$this, 'open'),
-            array(&$this, 'close'),
-            array(&$this, 'read'),
-            array(&$this, 'write'),
-            array(&$this, 'destroy'),
-            array(&$this, 'gc')
+            array($this, 'open'),
+            array($this, 'close'),
+            array($this, 'read'),
+            array($this, 'write'),
+            array($this, 'destroy'),
+            array($this, 'gc')
         );
 
         // set some important session vars
@@ -93,6 +93,8 @@ class MongoSession {
         // name the session
         session_name('mongo_sess');
     
+        register_shutdown_function('session_write_close');
+        
         // start it up
         session_start();
 	}
@@ -161,7 +163,7 @@ class MongoSession {
 				  'unique' => false,
 				  'dropDups' => true,
 				  'safe' => true,
-				  'sparse' => true,
+                  'sparse' => true,
 			)
 		);
 		
@@ -256,7 +258,8 @@ class MongoSession {
             $obj = (array) $this->_session;
             $new_obj = array_merge($obj, $new_obj);
         }
-
+        unset($new_obj['_id']);
+        
 		// atomic update
 		$query = array('session_id' => $id);
 		
@@ -264,7 +267,7 @@ class MongoSession {
 		$options = array(
 			'upsert' 	=> TRUE,
 			'safe'		=> TRUE,
-			'fsync'		=> TRUE
+			'fsync'		=> FALSE
 		);
   
 		// perform the update or insert
@@ -272,6 +275,7 @@ class MongoSession {
 			$result = $this->_mongo->update($query, array('$set' => $new_obj), $options);
 			return $result['ok'] == 1;
 		} catch (Exception $e) {
+            throw $e;
 			return false;
 		}
 		
@@ -310,7 +314,7 @@ class MongoSession {
 		$options = array(
 			'multiple'	=> TRUE,
 			'safe'		=> TRUE,
-			'fsync'		=> TRUE
+			'fsync'		=> FALSE
 		);
 		
 		// update expired elements and set to inactive
@@ -339,38 +343,49 @@ class MongoSession {
 	 */
 	private function _lock($id)
 	{
-		$remaining = 30000000;
+        $remaining = 30000000;
 		$timeout = 5000;
 		
-        do {
-			
-            try {
-				
-                $query = array('session_id' => $id, 'lock' => 0);
-                $update = array('$set' => array('lock' => 1));
-                $options = array('safe' => true, 'upsert' => true);
-                $result = $this->_mongo->update($query, $update, $options);
-                if ($result['ok'] == 1) {
-                    return true;
+        // Check for a row.
+        $result = $this->_mongo->findOne(
+			array(
+				'session_id'	=> $id,
+				'expiry'    	=> array('$gte' => time()),
+				'active'    	=> 1
+			)
+		);
+        
+        // If we have a row, attempt to get a read lock.
+        if (!empty($result)) {
+            do {
+                try {
+                    $query = array('session_id' => $id, 'lock' => 0);
+                    $update = array('$set' => array('lock' => 1));
+                    $options = array('safe' => true);
+                    $result = $this->_mongo->update($query, $update, $options);              
+                    if ($result['ok'] == 1) {
+                        return true;
+                    }
+
+                } catch (MongoCursorException $e) {
+                    throw $e;
+                    if (substr($e->getMessage(), 0, 26) != 'E11000 duplicate key error') {
+                        throw $e; // not a dup key?
+                    }
                 }
 
-            } catch (MongoCursorException $e) {
-                if (substr($e->getMessage(), 0, 26) != 'E11000 duplicate key error') {
-                    throw $e; // not a dup key?
-                }
-            }
+                // force delay in microseconds
+                usleep($timeout);
+                $remaining -= $timeout;
 
-			// force delay in microseconds
-            usleep($timeout);
-            $remaining -= $timeout;
+                // backoff on timeout, save a tree. max wait 1 second
+                $timeout = ($timeout < 1000000) ? $timeout * 2 : 1000000;
 
-            // backoff on timeout, save a tree. max wait 1 second
-            $timeout = ($timeout < 1000000) ? $timeout * 2 : 1000000;
+            } while ($remaining > 0);
 
-        } while ($remaining > 0);
-
-        // aww shit.
-        throw new Exception('Could not obtain a session lock.');
+            // aww shit.
+            throw new Exception('Could not obtain a session lock.');
+        }
 	}
 
 }
