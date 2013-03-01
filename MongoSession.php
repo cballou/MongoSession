@@ -292,7 +292,7 @@ class MongoSession {
      */
     public function destroy($id)
     {
-        $this->_mongo->remove(array('session_id' => $id), true);
+        $this->_mongo->remove(array('session_id' => $id), array('w' => true));
         return true;
     }
 
