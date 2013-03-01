@@ -51,14 +51,7 @@ $config = array(
     'replicaSet'		=> false,
 
     // array of mongo db servers
-    'servers'   	=> array(
-        array(
-            'host'          => Mongo::DEFAULT_HOST,
-            'port'          => Mongo::DEFAULT_PORT,
-            'username'      => null,
-            'password'      => null
-        )
-    )
+    'connectionString'   	=> 'mongodb://USER:PASSWORD@HOST:PORT/Database'
 );
 
 $session = new MongoSession($config);
