@@ -17,8 +17,10 @@ class MongoSession {
     // (helpful for sharding and replication setups)
     protected $_config = array(
         // cookie related vars
-        'cookie_path'   => '/',
-        'cookie_domain' => '.mydomain.com', // .mydomain.com
+        'cookie_path'       => '/',
+        'cookie_domain'     => '.mydomain.com', 
+        'cookie_secure'     => false,
+        'cookie_httponly'   => false,
 
         // session related vars
         'lifetime'      => 3600,        // session lifetime in seconds
@@ -30,16 +32,10 @@ class MongoSession {
         'persistentId' 	=> 'MongoSession', 	// name of persistent connection
 		
 		// whether we're supporting replicaSet
-		'replicaSet'		=> false,
+		'replicaSet'	=> false,
 
 		// array of mongo db servers
-		   'connectionString' => '',
-        
-        // secure flag for cookie        
-        'isSecure' => false,
-        
-        //http only flag for cookie
-        'isHttpOnly' => false
+        'connectionString' => ''
     );
 
 	// stores the connection
@@ -94,8 +90,8 @@ class MongoSession {
 			$this->_config['lifetime'],
 			$this->_config['cookie_path'],
 			$this->_config['cookie_domain'],
-                        $this->_config['isSecure'], 
-                        $this->_config['isHttpOnly']
+            $this->_config['cookie_secure'], 
+            $this->_config['cookie_httponly']
 		);
 
         // name the session
