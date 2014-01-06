@@ -33,7 +33,13 @@ class MongoSession {
 		'replicaSet'		=> false,
 
 		// array of mongo db servers
-		'connectionString'    => ''
+		   'connectionString' => '',
+        
+        // secure flag for cookie        
+        'isSecure' => false,
+        
+        //http only flag for cookie
+        'isHttpOnly' => false
     );
 
 	// stores the connection
@@ -87,7 +93,9 @@ class MongoSession {
         session_set_cookie_params(
 			$this->_config['lifetime'],
 			$this->_config['cookie_path'],
-			$this->_config['cookie_domain']
+			$this->_config['cookie_domain'],
+                        $this->_config['isSecure'], 
+                        $this->_config['isHttpOnly']
 		);
 
         // name the session
