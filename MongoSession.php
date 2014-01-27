@@ -367,7 +367,7 @@ class MongoSession {
                     $update = array('$set' => array('lock' => 1));
                     $options = array('safe' => true);
                     $result = $this->_mongo->update($query, $update, $options);              
-                    if ($result['ok'] == 1) {
+                    if ($result['n'] == 1) {
                         return true;
                     }
 
