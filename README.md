@@ -97,3 +97,7 @@ Note
 ----
 
 If you fork this library and make any substantial updates or bug fixes, please consider sending a push request.
+
+
+[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/cballou/mongosession/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
+
